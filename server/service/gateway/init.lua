@@ -12,46 +12,6 @@ local players = {} --[playerid] = gateplayer
 
 local sys_user_mapper = require "mapper.sys_user"
 
--- 连接类
-function conn()
-    local m = {
-        fd = nil,
-        playerid = nil,
-        token = nil
-    }
-    return m
-end
-
---玩家类
-function gateplayer()
-    local m = {
-        playerid = nil,
-        agent = nil,
-        conn = nil
-    }return m
-end
-
-local str_pack = function (cmd, msg)
-    return table.concat(msg, ",") .. "\r\n"
-end
-
-local disconnect = function (fd)
-    local c = conns[fd]
-    if not c then
-        return
-    end
-
-    local playerid = c.playerid
-
-    if not playerid then
-        return
-    else
-        players[playerid] = nil
-        local reason = "断线"
-        skynet.call("agentmgr", "lua", "reqkick", playerid, reason)
-    end
-end
-
 local toproto = function (content)
 end
 
@@ -135,6 +95,24 @@ end
 local connect_cache = {}
 local user_cache = {}
 
+-- 断开链接
+local disconnect = function (fd)
+    local c = connect_cache[fd]
+    if not c then
+        return
+    end
+
+    local user_id = c.user_id
+
+    if not user_id then
+        return
+    else
+        user_cache[user_id] = nil
+        local reason = "断线"
+        skynet.call("agentmgr", "lua", "reqkick", user_id, reason)
+    end
+end
+
 -- 拆分指令
 local command_unpack = function (instruction)
     local msg = {}
@@ -215,8 +193,8 @@ local process_msg = function (fd, instruction)
         return
     end
 
-    -- 执行指令
-    skynet.send(conn.agent, "lua", "client", instructs)
+    -- 执行用户指令
+    skynet.send(conn.agent, "lua", "client", instructs[1], instructs)
 end
 
 -- 响应buff分割
@@ -325,6 +303,26 @@ s.resp.error_json = function (source, fd, user_id, msg)
 
         s.resp.send_json_by_fd(nil, user.fd, msg)
     end
+end
+
+-- 发送心跳包
+s.resp.send_heart_check = function (source, heart)
+    local user = user_cache[heart.user_id]
+    if not user then
+        return nil
+    end
+
+    s.resp.send_by_fd(nil, user.fd, instruct.CMD_HEART_CHECK..","..heart)
+end
+
+-- 接收心跳包
+s.resp.heart_check = function (source, heart)
+    local user = user_cache[heart.user_id]
+    if not user or not user.agent then
+        return nil
+    end
+
+    skynet.send(user.agent, "lua", "client", instruct.CMD_HEART_CHECK, heart)
 end
 
 -- 构造函数

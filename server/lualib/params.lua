@@ -42,10 +42,19 @@ function PlayerData()
     }
 end
 
+function HeartPacket()
+    return {
+        id = nil,
+        timestamp = nil,
+        random = nil
+    }
+end
+
 return {
     Resp = Resp,
     AutoLoginParams = AutoLoginParams,
     GatewayField = GatewayField,
     LoginParams = LoginParams,
     PlayerData = PlayerData,
+    HeartPacket = HeartPacket,
 }
