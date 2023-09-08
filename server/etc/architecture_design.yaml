@@ -1,0 +1,114 @@
+# 全局唯一服务
+agent-mgr-service:
+  fields:
+    - agent-mgr-field:
+        - 'agents'
+  cmd:
+    - 'req_login'
+    - 'req_kick'
+room-mgr-service:
+  fields:
+    - room-mgr-field:
+        - 'rooms'
+  cmd:
+    - 'enter_rank'
+    - 'enter_match'
+    - 'enter_custom'
+chat-mgr-service:
+  cmd:
+    - 'enter_chat'
+    - 'global_broadcast'
+
+# 本地唯一服务
+scene-mgr-service:
+  fields:
+    - scene-mgr-field:
+        - 'scenes'
+  cmd:
+    - 'start_fight'
+    - 'force_kick'
+node-mgr-service:
+  cmd:
+    - 'new_service'
+chat-service:
+  cmd:
+    - 'scene_broadcast'
+    - 'room_broadcast'
+
+# 普通服务
+gateway-service:
+  fields:
+    - gateway-field:
+        - 'user_id'
+        - 'token'
+        - 'random_code'
+        - 'fd'
+        - 'agent'
+        - 'chat'
+        - 'heart_check_time'
+  cmd:
+    - 'get_heart_timestamp'
+    - 'send_json_by_fd'
+    - 'send_json_by_id'
+    - 'send_data_by_fd'
+    - 'send_data_by_id'
+    - 'out_data_by_fd'
+    - 'out_data_by_id'
+login-service:
+  cmd:
+    - 'auto_login'
+agent-service:
+  fields:
+    - agent-field:
+        - 'user_id'
+        - 'gateway'
+        - 'node'
+        - 'heart_timestamp'
+        - 'status'
+        - 'status_owner'
+  cmd:
+    - 'update'
+    - 'get_properties'
+    - 'set_properties'
+    - 'enter_match'
+    - 'ready'
+    - 'instance_db'
+rank-room-service:
+  fields:
+    - room-field:
+        - 'agents'
+        - 'gateway'
+        - 'node'
+  cmd:
+    - 'get_properties'
+    - 'auto_fight'
+match-room-service:
+  fields:
+    - room-field:
+        - 'agents'
+        - 'gateway'
+        - 'node'
+  cmd:
+    - 'get_properties'
+    - 'auto_fight'
+custom-room-service:
+  fields:
+    - room-field:
+        - 'chat'
+        - 'agents'
+        - 'gateway'
+        - 'node'
+  cmd:
+    - 'get_properties'
+    - 'start_fight'
+scene-service:
+  fields:
+    - scene-field:
+        - 'chat'
+        - 'agents'
+        - 'gateway'
+        - 'node'
+  cmd:
+    - 'update'
+    - 'kick_agent'
+

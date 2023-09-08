@@ -2,6 +2,8 @@ local skynet = require "skynet"
 local s = require "service"
 local run_config = require "runconfig"
 
+-- 全局唯一
+
 STATUS = {
     LOGIN = 2,
     LOGIN_COMPETE = 3,
@@ -40,7 +42,7 @@ s.resp.reqlogin = function (source, auto_login_params)
     player.agent = nil
     player.status = STATUS.LOGIN
     players[auto_login_params.user_id] = player
-    local agent = s.call(node, "nodemgr", "newservice", "agent", "agent", auto_login_params.user_id)
+    local agent = s.call(auto_login_params.node, "nodemgr", "newservice", "agent", "agent", auto_login_params.user_id)
     player.agent = agent
     player.status = STATUS.LOGIN_COMPETE
     return agent

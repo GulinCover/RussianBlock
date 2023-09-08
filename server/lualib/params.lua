@@ -50,6 +50,22 @@ function HeartPacket()
     }
 end
 
+function Agent()
+    return {
+        id = nil,
+        agent = nil,
+        node = nil
+    }
+end
+
+function Scene(scene)
+    return {
+        id = nil,
+        scene = scene,
+        node = nil
+    }
+end
+
 return {
     Resp = Resp,
     AutoLoginParams = AutoLoginParams,
@@ -57,4 +73,6 @@ return {
     LoginParams = LoginParams,
     PlayerData = PlayerData,
     HeartPacket = HeartPacket,
+    Agent = Agent,
+    Scene = Scene,
 }
