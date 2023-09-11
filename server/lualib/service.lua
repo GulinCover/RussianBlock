@@ -65,8 +65,8 @@ function Service.send(node, srv, ...)
 end
 
 function Service.start(name, id, ...)
-    M.name = name
-    M.id = tonumber(id)
+    Service.name = name
+    Service.id = tonumber(id)
     skynet.start(init)
 end
 

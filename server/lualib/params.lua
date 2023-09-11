@@ -20,6 +20,9 @@ function GatewayField(fd)
         user_id = nil,
         token = nil,
         agent = nil,
+        random_code = nil, -- udp
+        chat = nil,
+        heart_check_time = nil,
     }
 end
 

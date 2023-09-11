@@ -8,7 +8,8 @@ STATUS = {
     LOGIN = 2,
     LOGIN_COMPETE = 3,
     GAME = 4,
-    LOGOUT = 5
+    LOGOUT = 5,
+    LOGIN_EXCEPTION = 6
 }
 
 local players = {}
@@ -26,10 +27,10 @@ end
 
 -- 登录
 s.resp.reqlogin = function (source, auto_login_params)
-    local mplayer = players[auto_login_params.user_id]
+    local user = players[auto_login_params.user_id]
 
     -- 已登录
-    if mplayer then
+    if user then
         s.log("reqlogin fail, already login "..auto_login_params.user_id)
         return nil
     end
@@ -43,31 +44,41 @@ s.resp.reqlogin = function (source, auto_login_params)
     player.status = STATUS.LOGIN
     players[auto_login_params.user_id] = player
     local agent = s.call(auto_login_params.node, "nodemgr", "newservice", "agent", "agent", auto_login_params.user_id)
-    player.agent = agent
     player.status = STATUS.LOGIN_COMPETE
+    if not agent then
+        player.status = STATUS.LOGIN_EXCEPTION
+    end
+    player.agent = agent
     return agent
 end
 
+-- 踢出下线
 s.resp.reqkick = function (source, user_id, reason)
-    local mplayer = players[user_id]
+    local user = players[user_id]
 
-    if not mplayer then
+    if not user then
         return false
     end
 
-    if mplayer.status ~= STATUS.GAME then
+    -- 正在游戏中无法下线
+    if user.status ~= STATUS.GAME then
+        s.send(user.node, user.agent, "mark_kick")
         return false
     end
 
-    local pnode = mplayer.node
-    local pagent = mplayer.agent
-    local gateway = mplayer.gateway
-    mplayer.status = STATUS.LOGOUT
+    local node = user.node
+    local agent = user.agent
+    local gateway = user.gateway
+    user.status = STATUS.LOGOUT
 
-    s.call(pnode, pagent, "kick")
-    s.send(pnode, pagent, "exit")
-    s.send(pnode, gateway, "kick", user_id)
+    s.call(node, agent, "kick")
+    s.send(node, agent, "exit")
+    s.send(node, gateway, "kick", user_id)
     players[user_id] = nil
+
+    if reason then
+        s.log(reason)
+    end
 
     return true
 end
