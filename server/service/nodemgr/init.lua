@@ -1,6 +1,9 @@
 local skynet = require "skynet"
-local s = require "service"
+local NodeMgrService = require "ServiceAbstract"
+local Instruction = require "Instruction"
 local queue = require "service.queue"
+
+local this = NodeMgrService
 
 local cs = queue()
 local service_timer_cache = {}
@@ -63,20 +66,20 @@ end
 -- =============================== 服务函数 ===================================
 
 -- 启动服务
-s.resp.newservice = function (source, name, ...)
-    s.log("startup service " ..name.. ...)
-    local srv = skynet.newservice(name, ...)
-    return srv
+NodeMgrService.internal[Instruction.NodeMgr.Internal.CMD_NEW_SERVICE] = function (source, param)
+    this.Log("startup service " ..param.name.. param.id)
+    local service = skynet.newservice(param.service, param.name, param.id)
+    return service == nil, service
 end
 
 -- 添加定时任务
-s.resp.new_timer_service = function (source, name, time, func)
+NodeMgrService.resp.new_timer_service = function (source, name, time, func)
     cs(new_timer_service_func, name, time, func)
 end
 
 -- 移除定时任务
-s.resp.remove_timer_service = function (source, name, time)
+NodeMgrService.resp.remove_timer_service = function (source, name, time)
     cs(remove_timer_service_func, name, time)
 end
 
-s.start(...)
+this.Start(...)

@@ -26,6 +26,10 @@ function AGENT_REGISTER_FAIL()
     return 5,"用户代理注册失败"
 end
 
+function DATA_EXCEPTION()
+    return 6,"数据异常"
+end
+
 return {
     CHECK_LOGIN_SUCCESS = "校验登陆成功",
     GATEWAY_REGISTER_FAIL = "网关注册失败",
@@ -38,5 +42,6 @@ return {
     NOT_LOGIN = NOT_LOGIN,
     NOT_MATCH_LOGIN = NOT_MATCH_LOGIN,
     ALREADY_LOGIN = ALREADY_LOGIN,
-    AGENT_REGISTER_FAIL = AGENT_REGISTER_FAIL
+    AGENT_REGISTER_FAIL = AGENT_REGISTER_FAIL,
+    DATA_EXCEPTION = DATA_EXCEPTION,
 }

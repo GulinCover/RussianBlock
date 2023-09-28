@@ -2,6 +2,7 @@ local skynet = require "skynet"
 local s = require "service"
 local params = require "params"
 local run_config = require "runconfig"
+local instruction = require "instruction"
 
 local sys_user_mapper = require "mapper.sys_user"
 
@@ -25,7 +26,8 @@ local user_info = {
 local service_info = {
     gateway = nil,
     node = nil,
-    chat = nil
+    scene_chat = nil,
+    room_chat = nil,
 }
 
 s.client = {}
@@ -58,11 +60,60 @@ local heart_check_select_func = function()
     user_info.heart_check_time = timestamp
 end
 
+-- 发送消息
+local send_chat_func = function(message, dests, type, t)
+    local chat = service_info[type]
+    if not chat and #dests == 1 then
+        -- 好友消息
+        skynet.send("chatmgr", "lua", "send_message", user_info.user_id, dests[1], message, t)
+    end
+
+    -- 其他消息
+    for k,v in pairs(dests) do
+        skynet.send(chat, "lua", "send_message", user_info.user_id, v, message, t)
+    end
+end
+
 -- ==================================客户端服务方法=====================================
 
 -- 同步数据
 s.client.update = function(source, data)
 
+end
+
+-- 发送信息
+s.client.send_chat = function(source, data)
+    if not data then
+        return
+    end
+
+    local type = data.chat_type
+    if not type then
+        return
+    end
+
+    if type == ChatType.FRIEND then
+        if data.dest_user_ids and #data.dest_user_ids > 0 then
+            send_chat_func(data.message, data.dest_user_ids, 'friend', type)
+        end
+    elseif type == ChatType.ROOM then
+        if data.dest_user_ids and #data.dest_user_ids > 0 then
+            send_chat_func(data.message, data.dest_user_ids, 'room_chat', type)
+        end
+    elseif type == ChatType.SCENE then
+        if data.dest_user_ids and #data.dest_user_ids > 0 then
+            send_chat_func(data.message, data.dest_user_ids, 'scene_chat', type)
+        end
+    end
+end
+
+-- 接收信息
+s.client.send_chat = function(source, s, d, m, t)
+    if d == user_info.user_id then
+        s.log("receive message "..m.." from "..s.." to "..d)
+        m = s.."#"..d.."#"..t.."#"..m
+        skynet.send(service_info.gateway, "lua", "send_chat_message", instruction.CMD_CHAT..","..m)
+    end
 end
 
 -- ==================================服务方法=====================================
@@ -160,6 +211,14 @@ s.init = function()
 
     user_info.user_id = s.id
     user_info.rank_num = ret[1].rank_num
+
+    -- 查询好友信息,生成好友chat
+    ret = skynet.call(sys_user_mapper.selectSysUserFriendById(s.id))
+    if not ret or not ret[1] then
+        s.log("select user_friend_info exception")
+        return
+    end
+    user_info.friend_list = ret
 end
 
 s.start(...)

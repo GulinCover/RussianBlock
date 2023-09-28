@@ -19,11 +19,17 @@ return {
     agentmgr = {
         node = "node1"
     },
+    --roommgr
+    roommgr = {
+        node = "node1"
+    },
     --scene
     scene = {
         node1 = {1001, 1002},
         -- node2 = {1003},
     },
+    --节点数量
+    node_id = {'node1','node2'},
     --节点1
     node1 = {
         gateway = {

@@ -1,9 +1,9 @@
-local skynet = require "skynet"
+local Skynet = require "skynet"
 local runconfig = require "runconfig"
 local skynet_manager = require "skynet.manager"
 local cluster = require "skynet.cluster"
 
-skynet.start(function ()
+Skynet.start(function ()
     skynet.error("[start main]")
 
     local mynode = skynet.getenv("node")

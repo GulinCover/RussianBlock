@@ -1,6 +1,6 @@
 local skynet = require "skynet"
 
-local result_wrapper = function (sql)
+local resultWrapper = function (sql)
     return "mysql", "lua", "query", sql
 end
 
@@ -11,7 +11,7 @@ local analysis = function (sql, params)
     return sql
 end
 
-local sql_wrapper = function (sql, params)
+local sqlWrapper = function (sql, params)
     skynet.error("src sql: "..sql)
     local result = "{"
     for key, value in pairs(params) do
@@ -25,9 +25,9 @@ local sql_wrapper = function (sql, params)
     skynet.error("sql: ")
     skynet.error("----"..sql)
     skynet.error("result: ")
-    return result_wrapper(sql)
+    return resultWrapper(sql)
 end
 
 return {
-    sql_wrapper = sql_wrapper,
+    SqlWrapper = sqlWrapper,
 }

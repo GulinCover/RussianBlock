@@ -1,8 +1,10 @@
 local skynet = require "skynet"
-local s = require "service"
-local run_config = require "runconfig"
+local AgentMgrService = require "ServiceAbstract"
+local RunConfig = require "RunConfig"
+local Instruction = require "Instruction"
 
 -- 全局唯一
+local this = AgentMgrService
 
 STATUS = {
     LOGIN = 2,
@@ -12,9 +14,7 @@ STATUS = {
     LOGIN_EXCEPTION = 6
 }
 
-local players = {}
-
-function Player()
+local PlayerItem = function ()
     local m = {
         user_id = nil,
         node = nil,
@@ -24,32 +24,37 @@ function Player()
     }
     return m
 end
+AgentMgrService.agentCache = {}
 
 -- 登录
-s.resp.reqlogin = function (source, auto_login_params)
-    local user = players[auto_login_params.user_id]
+AgentMgrService.internal[Instruction.AgentMgr.Internal.CMD_REQ_LOGIN] = function (source, command)
+    local user = this.agentCache[command.userId]
 
     -- 已登录
     if user then
-        s.log("reqlogin fail, already login "..auto_login_params.user_id)
-        return nil
+        return nil, "req_login fail, already login "..command.user_id
     end
 
     -- 未登录则自动登录
-    local player = Player()
-    player.user_id = auto_login_params.user_id
-    player.node = auto_login_params.node
-    player.gate = auto_login_params.gateway
+    local player = PlayerItem()
+    player.userId = command.userId
+    player.node = command.node
+    player.gate = command.gateway
     player.agent = nil
     player.status = STATUS.LOGIN
-    players[auto_login_params.user_id] = player
-    local agent = s.call(auto_login_params.node, "nodemgr", "newservice", "agent", "agent", auto_login_params.user_id)
+    this.agentCache[command.userId] = player
+    local param = {
+        service = "agent",
+        name = "agent",
+        id = command.user_id
+    }
+    local hr, agent = this.Call(command.node, "nodemgr", Instruction.NodeMgr.Internal.CMD_NEW_SERVICE, param)
     player.status = STATUS.LOGIN_COMPETE
-    if not agent then
+    if not hr then
         player.status = STATUS.LOGIN_EXCEPTION
     end
     player.agent = agent
-    return agent
+    return hr, agent
 end
 
 -- 踢出下线
@@ -83,4 +88,4 @@ s.resp.reqkick = function (source, user_id, reason)
     return true
 end
 
-s.start(...)
+this.Start(...)

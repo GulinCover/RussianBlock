@@ -1,58 +1,54 @@
 local skynet = require "skynet"
-local runconfig = require "runconfig"
-local s = require "service"
+local RunConfig = require "RunConfig"
+local MysqlService = require "ServiceAbstract"
+local Instruction = require "Instruction"
 
 local mysql = require "skynet.db.mysql"
 
-s.curr_node = nil;
-s.db = nil
+local this = MysqlService
 
-local print_ret = function (ret)
+this.DB = nil
+
+MysqlService.PrintRet = function (ret)
     local result = ""
     for i, v in ipairs(ret) do
         for key, value in pairs(v) do
             result = result.. value .. " "
         end
     end
-    skynet.error("----".. result)
+    this.Log("----".. result)
 end
 
-s.init = function ()
-    s.curr_node = skynet.getenv("node")
-    local db_config = runconfig[s.curr_node].db
+MysqlService.internal[Instruction.DB.Mysql.Internal.CMD_QUERY] = function (source, query)
+    local ret = this.DB:query(query)
+    MysqlService.PrintRet(ret)
+    return ret
+end
+
+MysqlService.internal[Instruction.DB.Mysql.Internal.CMD_CLOSE] = function (source)
+    this.DB:set_keepalive(10000, 50)
+end
+
+MysqlService.Construct = function ()
+    local dbConfig = RunConfig[this.node].db
 
     local db = mysql.connect({
         max_idle_timeout = 10000,
         pool_size = 50,
-        host = db_config.host,
-        port = db_config.port,
-        user = db_config.user,
-        password = db_config.password,
-        database = db_config.database,
-        charset = db_config.charset
-        })
+        host = dbConfig.host,
+        port = dbConfig.port,
+        user = dbConfig.user,
+        password = dbConfig.password,
+        database = dbConfig.database,
+        charset = dbConfig.charset
+    })
 
     if not db then
-        skynet.error("mysql connect exception")
+        this.Log("mysql connect exception")
     end
-    s.db = db
+    this.DB = db
 
-    skynet.error("mysql connect success")
+    this.Log("mysql connect success")
 end
 
-s.resp.query = function (source, query)
-    local ret = s.db:query(query)
-
-    print_ret(ret)
-
-    if not ret then
-        return nil
-    end
-    return ret
-end
-
-s.resp.close = function (source)
-    s.db:set_keepalive(10000, 50)
-end
-
-s.start(...)
+this.Start(...)

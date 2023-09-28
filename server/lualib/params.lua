@@ -69,6 +69,21 @@ function Scene(scene)
     }
 end
 
+ChatType = {
+    HALL = 1,
+    ROOM = 2,
+    SCENE = 3,
+    FRIEND = 4
+}
+function ChatData()
+    return {
+        src_user_id = nil,
+        dest_user_ids = nil,
+        chat_type = nil,
+        message = nil
+    }
+end
+
 return {
     Resp = Resp,
     AutoLoginParams = AutoLoginParams,
@@ -78,4 +93,5 @@ return {
     HeartPacket = HeartPacket,
     Agent = Agent,
     Scene = Scene,
+    ChatData = ChatData,
 }

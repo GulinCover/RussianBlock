@@ -1,8 +1,10 @@
 local skynet = require "skynet"
-local s = require "service"
-local run_config = require "runconfig"
+local RoomMgrService = require "ServiceAbstract"
+local RunConfig = require "RunConfig"
 local queue = require "skynet.queue"
-local params = require "params"
+local Instruction = require "Instruction"
+
+local this = RoomMgrService
 
 -- 1=排位,2=匹配,3=自定义
 Type = {
@@ -11,23 +13,21 @@ Type = {
     CUSTOM = 3,
 }
 
-local match_rule = run_config.rank_num_match_rule
+local MatchRule = RunConfig.rank_num_match_rule
 
-local rank_cs = queue()
-local match_cs = queue()
-local custom_cs = queue()
+local RankCs = queue()
+local MatchCs = queue()
+local CustomCs = queue()
 
-local room_rank_cache = {}
-local room_match_cache = {}
-local room_custom_cache = {}
-
-local auto_ready = function(agent, type, ready)
-    s.call(agent.node, agent.agent, 'lua', 'ready', type, ready)
+local RankRoomItem = function()
+    return {
+        size = 2,
+        agentList = {},
+    }
 end
-
-local set_user_match_mode = function(agent, type)
-    s.call(agent.node, agent.agent, 'lua', 'match_type', type)
-end
+this.RoomRankCache = {}
+this.RoomMatchCache = {}
+this.RoomCustomCache = {}
 
 local generate_rank_room = function(agents)
     local flag = false
@@ -59,43 +59,66 @@ local generate_rank_room = function(agents)
     end
 end
 
-local rank = function(source, agent)
-    local rank_num = s.call(agent.node, agent.agent, 'lua', 'get_properties', 'rank_num')
-    set_user_match_mode(agent, TYPE.RANK)
-    for i, v in ipairs(match_rule) do
-        if rank_num >= v[1] and rank_num <= v[2] then
-            local r = room_rank_cache[i]
-            if not r then
-                room_rank_cache[i] = {}
-                r = room_rank_cache[i]
-            end
-            table.insert(r, agent)
-            auto_ready(agent, Type.RANK, 1)
+local RankCheck = function(room)
+    if not room then
+        return
+    end
 
-            if #r >= 2 then
-                -- 匹配完成,生成房间
-                room_rank_cache[i] = nil
-                generate_rank_room(r)
+    -- 匹配完成
+    if #room.agentList == room.size then
+        local idx = math.random(1, #room.agentList)
+        local node = nil
+        local id = os.time()
+        for i, v in ipairs(room.agentList) do
+            if i == idx then
+                node = v.node
             end
+            id = '$'..id..v.UserInfo.userId
+        end
+
+        if not node then
+            node = room.agentList[1].node
+        end
+
+        local param = {
+            service = 'room',
+            name = 'room',
+            id = id
+        }
+        local hr, r = this.Call(node, 'nodemgr', Instruction.NodeMgr.Internal.CMD_NEW_SERVICE, param)
+        if not hr then
+            this.Log(r)
             return
+        end
+
+        local command = {
+            type = 1,
+            agentList = room.agentList,
+        }
+        this.Call(node, r, Instruction.Room.Internal.CMD_MATCH_COMPLETE, command)
+        room.agentList = {}
+    end
+end
+
+local Rank = function(command)
+    local room = nil
+
+    local rankNum = command.agent.UserInfo.rankNum
+    for i, v in ipairs(MatchRule) do
+        if rankNum >= v[1] and rankNum <= v[2] then
+            room = this.RoomRankCache[v[1]]
+            table.insert(room, command.agent)
+            break
         end
     end
 
     -- 非规则内
-    local m = #match_rule + 1
-    local r = room_rank_cache[m]
-    if not r then
-        room_rank_cache[m] = {}
-        r = room_rank_cache[m]
+    if not room then
+        room = this.RoomRankCache[MatchRule[#MatchRule][1]]
+        table.insert(room, command.agent)
     end
-    table.insert(r, agent)
-    auto_ready(agent, Type.RANK, 1)
 
-    if #r >= 2 then
-        -- 匹配完成,生成房间
-        room_rank_cache[m] = nil
-        generate_rank_room(r)
-    end
+    RankCheck(room)
 end
 
 local match = function(source, agent)
@@ -106,16 +129,24 @@ local custom = function(source, agent)
 
 end
 
-s.resp.rank = function(source, agent)
-    rank_cs(rank, source, agent)
+RoomMgrService.internal[Instruction.RoomMgr.Internal.CMD_READY_RANK] = function(source, command)
+    RankCs(Rank, command)
 end
 
-s.resp.match = function(source, agent)
-    match_cs(match, source, agent)
+RoomMgrService.internal[Instruction.RoomMgr.Internal.CMD_READY_MATCH] = function(source, command)
+    match_cs(match, command)
 end
 
-s.resp.custom = function(source, agent)
+RoomMgrService.internal.custom = function(source, agent)
     custom_cs(custom, source, agent)
 end
 
-s.start(...)
+-- 构造函数
+RoomMgrService.Construct = function()
+    for i, v in ipairs(MatchRule) do
+        this.RoomRankCache[v[1]] = RankRoomItem()
+    end
+end
+
+-- 启动函数
+this.Start(...)
