@@ -1,0 +1,201 @@
+package filters;
+
+import com.kernel.dao.iface.sys.SysRoleAuthDao;
+import com.kernel.dao.iface.sys.TreeDao;
+import com.kernel.entity.sys.SysRoleAuth;
+import com.kernel.entity.sys.Tree;
+import com.kernel.entity.sys.UserInfo;
+import com.kernel.struts.SystemInfo;
+import com.kernel.util.Constants;
+import org.springframework.beans.BeansException;
+import org.springframework.context.ApplicationContext;
+import org.springframework.context.ApplicationContextAware;
+
+import javax.servlet.*;
+import javax.servlet.http.HttpServletRequest;
+import javax.servlet.http.HttpServletResponse;
+import javax.servlet.http.HttpSession;
+import java.io.IOException;
+import java.util.List;
+
+public class UserFilter
+        implements Filter, ApplicationContextAware {
+
+    private FilterConfig filterConfig;
+    private boolean isEnabled;
+    private String ignoreUrls[];
+    private String timeOutUrl;
+    private String reloginUrl;
+    private String noAuthUrl;
+
+    public UserFilter() {
+        isEnabled = false;
+        ignoreUrls = null;
+        timeOutUrl = null;
+        reloginUrl = null;
+        noAuthUrl = null;
+    }
+
+    @Override
+    public void init(FilterConfig filterConfig)
+            throws ServletException {
+        this.filterConfig = filterConfig;
+        String isEnabled = filterConfig.getInitParameter("Enabled");
+        if (isEnabled.equalsIgnoreCase("true"))
+            this.isEnabled = true;
+        String urls = filterConfig.getInitParameter("IgnoreUrls");
+        ignoreUrls = urls.split(",");
+        timeOutUrl = filterConfig.getInitParameter("TimeOutUrl");
+        reloginUrl = filterConfig.getInitParameter("ReloginUrl");
+        noAuthUrl = filterConfig.getInitParameter("NoAuthUrl");
+    }
+
+    @Override
+    public void doFilter(ServletRequest request, ServletResponse response, FilterChain filterChain)
+            throws ServletException, IOException {
+        HttpServletResponse resp = (HttpServletResponse) response;
+        resp.setHeader("Cache-Control", "no-cache");
+        resp.setDateHeader("Expires", 0L);
+        resp.setHeader("Pragma", "No-cache");
+
+        if (filterConfig == null)
+            return;
+        if (!isEnabled) {
+            filterChain.doFilter(request, response);
+            return;
+        }
+
+        HttpServletRequest httpRequest = (HttpServletRequest) request;
+        HttpSession session = httpRequest.getSession(true);
+        UserInfo userInfo = (UserInfo) session.getAttribute(Constants.USERINFO);
+        boolean hasLogin = false;
+        if (session != null) {
+            hasLogin = userInfo != null;
+        }
+
+        // 2023/08/04 add 用户角色菜单查看权限检测
+        if (!roleMenuAuth(userInfo, request)) {
+            httpRequest.getRequestDispatcher(noAuthUrl).forward(request, response);
+            return;
+        }
+
+        String userURI = httpRequest.getRequestURI();
+        String contextPath = httpRequest.getContextPath();
+        Object forbidMenu = session.getAttribute("forbidRoleAuth");
+
+        //�Ƿ���Ȩ�޵�url���˴�������ʱҳ���׳���ʾ
+		/*String requestUrl=userURI.substring(userURI.indexOf(contextPath)+contextPath.length());
+			if (forbidMenu!=null){
+				String queryCon=httpRequest.getQueryString();
+				if (queryCon!=null && !queryCon.equalsIgnoreCase("")){
+					if (queryCon.contains("authMenuId")){
+						queryCon=queryCon.substring(0,queryCon.indexOf("authMenuId"));
+						if (queryCon.endsWith("&")){
+							queryCon=queryCon.substring(0,queryCon.length()-1);
+						}
+					}
+
+					if (!queryCon.equalsIgnoreCase("")){
+						if (!requestUrl.contains("?")){
+							requestUrl=requestUrl+"?"+queryCon;
+						}else{
+							requestUrl=requestUrl+"&"+queryCon;
+						}
+					}
+				}
+			}
+
+			if (forbidMenu!=null && forbidMenu.toString().contains(requestUrl) && requestUrl!=null && !requestUrl.equalsIgnoreCase("")){
+				httpRequest.getRequestDispatcher(timeOutUrl).forward(request, response);
+				return;
+			}
+		 */
+
+        boolean canAnonymousAccess = false;
+        for (int i = 0; i < ignoreUrls.length; i++) {
+            if (!userURI.equalsIgnoreCase(contextPath + ignoreUrls[i]))
+                continue;
+            canAnonymousAccess = true;
+            break;
+        }
+
+        if (userInfo != null && !canAnonymousAccess) {
+            Object oj = session.getServletContext().getAttribute(SystemInfo.getProjectName() + "sysUser" + userInfo.getUserId());
+            String[] ojArray = oj.toString().split(",");
+            Object sessionId = userInfo.getSessionId();
+            if (!ojArray[0].equals(sessionId)) {
+                httpRequest.getRequestDispatcher(reloginUrl).forward(request, response);
+                return;
+            }
+            Object sessionOj = session.getServletContext().getAttribute(SystemInfo.getProjectName() + httpRequest.getSession().getId());
+            if (sessionOj != null && !sessionOj.toString().equalsIgnoreCase(userInfo.getUserId())) {
+                httpRequest.getRequestDispatcher(reloginUrl).forward(request, response);
+                System.out.println("���˷Ƿ�session");
+                return;
+            }
+        }
+
+        if (!hasLogin && !canAnonymousAccess) {
+            httpRequest.getRequestDispatcher(timeOutUrl).forward(request, response);
+        } else {
+            filterChain.doFilter(request, response);
+        }
+    }
+
+    @Override
+    public void destroy() {
+    }
+
+    /**
+     * 权限验证
+     */
+    private boolean roleMenuAuth(UserInfo userInfo, ServletRequest request) {
+        // 跳过白名单url
+        String urls = filterConfig.getInitParameter("IgnoreUrls");
+        String uri = ((HttpServletRequest) request).getRequestURI();
+        uri = uri.replaceFirst("/" + SystemInfo.getProjectName() + "/", "/");
+        String[] split = urls.split(",");
+        for (String s : split) {
+            if (s.equals(uri)) {
+                return true;
+            }
+        }
+
+        // 检测是否为菜单内链接
+        TreeDao menuDao = (TreeDao) ctx.getBean("TreeDao", TreeDao.class);
+        List<Tree> menuList = menuDao.selectAllMenu();
+        boolean flag = false;
+        String authMenuId = request.getParameter("authMenuId");
+        for (Tree tree : menuList) {
+            if (tree.getLink().contains(uri)) {
+                flag = true;
+                authMenuId = tree.getMenuId();
+                break;
+            }
+        }
+
+        if (!flag) {
+            return true;
+        }
+
+        // 检测对应菜单用户角色是否有查询权限
+        SysRoleAuthDao sysRoleAuthDao = (SysRoleAuthDao) ctx.getBean("SysRoleAuthDao", SysRoleAuthDao.class);
+        SysRoleAuth param = new SysRoleAuth();
+        param.setRoleId(userInfo.getRoleId());
+        param.setMenuId(authMenuId);
+        param.setOperationType(userInfo.getOperationType());
+        SysRoleAuth sysRoleAuth = sysRoleAuthDao.selectSysRoleAuth(param);
+        if (sysRoleAuth != null) {
+            String authFeatures = sysRoleAuth.getAuthFeatures();
+            return authFeatures.length() == 4 && "1".equals(authFeatures.substring(3, 4));
+        }
+        return false;
+    }
+
+    private static ApplicationContext ctx;
+
+    @Override
+    public void setApplicationContext(ApplicationContext applicationContext) throws BeansException {
+        UserFilter.ctx = applicationContext;
+    }
+}
